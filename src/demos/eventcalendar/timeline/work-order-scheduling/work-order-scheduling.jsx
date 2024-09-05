@@ -244,9 +244,7 @@ const myResources = [
 
 const viewSettings = {
   timeline: {
-    type: 'week',
-    startDay: 1,
-    endDay: 5,
+    type: 'month',
   },
 };
 
@@ -274,6 +272,7 @@ function App() {
   const [popupEventDate, setDate] = useState([]);
   const [checkedResources, setCheckedResources] = useState([]);
   const [isSnackbarOpen, setSnackbarOpen] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const calInst = useRef();
 
@@ -301,6 +300,11 @@ function App() {
   );
 
   const saveEvent = useCallback(() => {
+    if (!validateForm()) {
+      console.log("Hay campos obligatorios que no están completos");
+      return;
+    }
+  
     const newEvent = {
       id: tempEvent.id,
       title: popupEventTitle,
@@ -312,25 +316,32 @@ function App() {
       color: tempEvent.color,
       resource: checkedResources,
     };
+
+    console.log(newEvent);
+  
     if (isEdit) {
-      // update the event in the list
       const index = myEvents.findIndex((x) => x.id === tempEvent.id);
       const newEventList = [...myEvents];
-
+  
       newEventList.splice(index, 1, newEvent);
       setMyEvents(newEventList);
-      // here you can update the event in your storage as well
-      // ...
     } else {
-      // add the new event to the list
       setMyEvents([...myEvents, newEvent]);
-      // here you can add the event to your storage as well
-      // ...
     }
+    
     calInst.current.navigateToEvent(newEvent);
-    // close the popup
     setPopupOpen(false);
-  }, [isEdit, myEvents, popupEventDate, popupEventNotes, popupEventTitle, popupEventLocation, popupEventBill, tempEvent, checkedResources]);
+  }, [
+    isEdit, 
+    myEvents, 
+    popupEventDate, 
+    popupEventNotes, 
+    popupEventTitle, 
+    popupEventLocation, 
+    popupEventBill, 
+    tempEvent, 
+    checkedResources
+  ]);
 
   const deleteEvent = useCallback(
     (event) => {
@@ -367,6 +378,7 @@ function App() {
   }, []);
 
   const dateChange = useCallback((args) => {
+    console.log(args);
     setDate(args.value);
   }, []);
 
@@ -377,6 +389,7 @@ function App() {
 
   const handleEventClick = useCallback(
     (args) => {
+      console.log('editado 1');
       setEdit(true);
       setTempEvent({ ...args.event });
       // fill popup form with event data
@@ -389,12 +402,14 @@ function App() {
 
   const handleEventCreated = useCallback(
     (args) => {
+      const endDate = new Date(args.event.end);
+  
+      const endHour = endDate.getHours();
+      
       setEdit(false);
       setTempEvent(args.event);
-      // fill popup form with event data
       loadPopupForm(args.event);
       setAnchor(args.target);
-      // open the popup
       setPopupOpen(true);
     },
     [loadPopupForm],
@@ -407,7 +422,43 @@ function App() {
     [deleteEvent],
   );
 
-  const headerText = useMemo(() => (isEdit ? 'Edit work order' : 'New work order'), [isEdit]);
+  const headerText = useMemo(() => (isEdit ? 'Editar Reserva' : 'Nueva Reserva'), [isEdit]);
+
+  const validateForm = () => {
+    const newErrors = {};
+  
+    console.log(popupEventDate);
+
+    if (!popupEventTitle || popupEventTitle.trim() === "") {
+      newErrors.title = "El título es obligatorio";
+    }
+  
+    if (!popupEventLocation || popupEventLocation.trim() === "") {
+      newErrors.location = "La ubicación es obligatoria";
+    }
+  
+    if (!popupEventBill || popupEventBill.toString().trim() === "") {
+      newErrors.bill = "La factura es obligatoria";
+    }
+  
+    if (!popupEventNotes || popupEventNotes.trim() === "") {
+      newErrors.notes = "Las notas son obligatorias";
+    }
+    if (!popupEventDate || popupEventDate.length !== 2) {
+      newErrors.date = "Selecciona un rango de fechas válido";
+    }
+
+    const endDate = new Date(popupEventDate[0])
+    const endHour = endDate.getHours();
+    
+    if (endHour >= 12) {
+      console.log("La hora de finalización no debe ser después de las 12 PM");
+      newErrors.date = "No se pueden hacer check-out despues de las 12 PM";
+    }
+  
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const popupButtons = useMemo(() => {
     if (isEdit) {
@@ -418,7 +469,7 @@ function App() {
             saveEvent();
           },
           keyCode: 'enter',
-          text: 'Save',
+          text: 'Guardar',
           cssClass: 'mbsc-popup-button-primary',
         },
       ];
@@ -430,7 +481,7 @@ function App() {
             saveEvent();
           },
           keyCode: 'enter',
-          text: 'Add',
+          text: 'Añadir',
           cssClass: 'mbsc-popup-button-primary',
         },
       ];
@@ -449,44 +500,19 @@ function App() {
 
   const extendMyDefaultEvent = useCallback(
     () => ({
-      title: 'Work order',
+      title: 'Nueva Reserva',
       location: '',
       cost: 0,
     }),
     [],
   );
 
-  const getCostString = useCallback((cost) => cost.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','), []);
-
-  const renderCustomDay = useCallback(
-    (args) => {
-      const events = args.events;
-      let costs = 0;
-
-      if (events) {
-        for (const event of events) {
-          costs += event.cost;
-        }
-      }
-
-      return (
-        <div>
-          <div className="md-work-order-date">{formatDate('DD DDD MMM YYYY', args.date)}</div>
-          <div className="md-work-order-date-title">{'Total revenue: $' + getCostString(costs)}</div>
-        </div>
-      );
-    },
-    [getCostString],
-  );
-
   const myScheduleEvent = useCallback(
     (event) => (
       <div>
         {event.title}
-        <span className="md-work-order-price-tag">${getCostString(event.original.cost)}</span>
       </div>
-    ),
-    [getCostString],
+    )
   );
 
   return (
@@ -506,7 +532,6 @@ function App() {
         onEventCreated={handleEventCreated}
         onEventDeleted={handleEventDeleted}
         extendDefaultEvent={extendMyDefaultEvent}
-        renderDay={renderCustomDay}
         renderScheduleEventContent={myScheduleEvent}
       />
       <Popup
@@ -522,13 +547,17 @@ function App() {
       >
         <div className="mbsc-form-group">
           <Input label="Title" value={popupEventTitle} onChange={titleChange} />
+          {errors.title && <p style={{ color: 'red' }}>{errors.title}</p>}
           <Input label="Location" value={popupEventLocation} onChange={locationChange} />
+          {errors.location && <p style={{ color: 'red' }}>{errors.location}</p>}
           <Input label="Bill to customer ($)" value={popupEventBill} onChange={billChange} />
+          {errors.bill && <p style={{ color: 'red' }}>{errors.bill}</p>}
           <Textarea label="Notes" value={popupEventNotes} onChange={notesChange} />
+          {errors.notes && <p style={{ color: 'red' }}>{errors.notes}</p>}
         </div>
         <div className="mbsc-form-group">
-          <Input ref={startRef} label="Starts" />
-          <Input ref={endRef} label="Ends" />
+          <Input ref={startRef} label="Check-in" />
+          <Input ref={endRef} label="Check-out" />
           <Datepicker
             select="range"
             controls={['time']}
@@ -539,39 +568,13 @@ function App() {
             onChange={dateChange}
             value={popupEventDate}
           />
-        </div>
-        <div className="mbsc-form-group">
-          <div className="mbsc-grid mbsc-no-padding">
-            <div className="mbsc-row">
-              {myResources.map((resources) =>
-                resources.children.map((res) => (
-                  <div className="mbsc-col-sm-4" key={res.id}>
-                    <>
-                      <div className="mbsc-form-group-title">{res.name}</div>
-                      {res.children.map((r) => (
-                        <Checkbox
-                          key={r.id}
-                          value={r.id}
-                          checked={checkedResources.indexOf(r.id) > -1}
-                          onChange={checkboxChange}
-                          theme="material"
-                          className="md-work-order-checkbox-label"
-                        >
-                          {r.name}
-                        </Checkbox>
-                      ))}
-                    </>
-                  </div>
-                )),
-              )}
-            </div>
-          </div>
+          {errors.date && <p style={{ color: 'red' }}>{errors.date}</p>}
         </div>
         <div className="mbsc-form-group">
           {isEdit && (
             <div className="mbsc-button-group">
               <Button className="mbsc-button-block" color="danger" variant="outline" onClick={handleDeleteClick}>
-                Delete event
+                Eliminar Reserva
               </Button>
             </div>
           )}
